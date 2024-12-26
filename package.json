@@ -1,0 +1,21 @@
+{
+  "name": "minecraftBot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mineflayer": "^4.23.0",
+    "keypress": "^0.2.1",
+    "readline-sync": "^1.4.10",
+    "express": "^4.18.2",
+    "prismarine-viewer": "^1.25.0",
+    "socket.io": "^4.7.2"
+  }
+}

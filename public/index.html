@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Minecraft Web Bot - By Musa Bukhari</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+      <div class="loading-animation"></div>
+      <div class="loading-text">Loading...</div>
+    </div>
+
+    <!-- Particle Effects -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Music Player -->
+    <div class="music-player">
+      <div class="music-controls">
+        <button class="music-btn" onclick="toggleMusic()">
+          <i class="fas fa-play" id="playPauseIcon"></i>
+        </button>
+        <button class="music-btn" onclick="nextTrack()">
+          <i class="fas fa-forward"></i>
+        </button>
+      </div>
+      <input
+        type="range"
+        class="volume-slider"
+        min="0"
+        max="100"
+        value="50"
+        onchange="updateVolume(this.value)"
+      />
+    </div>
+
+    <!-- Main Menu -->
+    <div class="main-menu" id="mainMenu">
+      <img src="/img/logo.png" alt="Minecraft Bot" class="menu-logo" />
+      <h1 class="menu-title">Minecraft Web Bot</h1>
+      <div class="menu-buttons-container">
+        <button class="menu-button" onclick="showServerList()">
+          <i class="fas fa-play"></i> Play
+        </button>
+        <button class="menu-button" onclick="showSettings()">
+          <i class="fas fa-cog"></i> Settings
+        </button>
+        <button class="menu-button" onclick="showAbout()">
+          <i class="fas fa-info-circle"></i> About
+        </button>
+      </div>
+    </div>
+
+    <!-- Server List -->
+    <div class="server-list" id="serverList" style="display: none">
+      <div class="server-list-header">
+        <h2>Servers</h2>
+        <button class="add-server-btn" onclick="showAddServer()">
+          Add Server
+        </button>
+      </div>
+      <div class="server-grid" id="serverGrid">
+        <!-- Servers will be added dynamically -->
+      </div>
+    </div>
+
+    <!-- Game Container -->
+    <div class="game-container" id="gameContainer">
+      <div class="game-ui-top">
+        <button class="game-ui-btn" onclick="toggleInventory()">
+          Inventory (E)
+        </button>
+        <button class="game-ui-btn" onclick="toggleCursorLock()">
+          Toggle Mouse (Tab)
+        </button>
+        <button class="game-ui-btn" onclick="exitGame()">
+          Exit Game (Esc)
+        </button>
+      </div>
+
+      <div id="viewport">
+        <iframe id="gameFrame" frameborder="0"></iframe>
+      </div>
+
+      <!-- Crosshair -->
+      <div class="crosshair"></div>
+
+      <!-- Hotbar -->
+      <div class="hotbar" id="hotbar"></div>
+
+      <!-- Chat -->
+      <div class="chat-box">
+        <div id="chatMessages"></div>
+        <input
+          type="text"
+          id="chatInput"
+          placeholder="Type message and press Enter"
+        />
+      </div>
+    </div>
+
+    <!-- Inventory -->
+    <div class="inventory" id="inventory"></div>
+
+    <!-- Settings Menu -->
+    <div class="settings-menu" id="settingsMenu">
+      <h2 class="settings-title">Settings</h2>
+
+      <div class="settings-group">
+        <label class="settings-label">Mouse Sensitivity</label>
+        <input
+          type="range"
+          class="settings-input"
+          id="sensitivity"
+          min="1"
+          max="100"
+          value="50"
+          oninput="updateSensitivityDisplay()"
+        />
+        <div class="sensitivity-display" id="sensitivityDisplay">50</div>
+      </div>
+
+      <h3>Controls</h3>
+      <div class="controls-grid" id="controlsGrid">
+        <!-- Controls will be added dynamically -->
+      </div>
+
+      <button class="menu-button" onclick="saveSettings()">Save</button>
+      <button class="menu-button" onclick="resetControls()">
+        Reset to Default
+      </button>
+      <button class="menu-button" onclick="closeSettings()">Cancel</button>
+    </div>
+
+    <!-- Cursor Lock Notice -->
+    <div class="cursor-lock-notice" id="cursorLockNotice">
+      Press Tab to toggle mouse lock
+    </div>
+
+    <!-- About Section -->
+    <div class="about-section">
+      <p>Developed by Musa Bukhari</p>
+      <p>Version 1.0.0</p>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      // Default controls configuration
+      const defaultControls = {
+        forward: "w",
+        back: "s",
+        left: "a",
+        right: "d",
+        jump: "space",
+        sneak: "shift",
+        inventory: "e",
+        chat: "t",
+        toggleMouse: "tab",
+      };
+
+      // Current controls
+      let controls = JSON.parse(localStorage.getItem("controls")) || {
+        ...defaultControls,
+      };
+      let servers = JSON.parse(localStorage.getItem("servers")) || [];
+
+      const socket = io();
+      let mouseX = 0,
+        mouseY = 0;
+      let isPointerLocked = false;
+      let selectedSlot = 0;
+      let settings = {
+        sensitivity: parseInt(localStorage.getItem("sensitivity")) || 50,
+        serverIP: "",
+        botName: "BOB101",
+      };
+
+      // Initialize controls grid
+      function initControlsGrid() {
+        const grid = document.getElementById("controlsGrid");
+        grid.innerHTML = "";
+
+        Object.entries(controls).forEach(([action, key]) => {
+          const div = document.createElement("div");
+          div.className = "control-item";
+          div.innerHTML = `
+            <span>${action}</span>
+            <input type="text" value="${key}" readonly onclick="recordKey(this, '${action}')">
+          `;
+          grid.appendChild(div);
+        });
+      }
+
+      // Record new key binding
+      function recordKey(input, action) {
+        input.value = "Press any key...";
+
+        function handleKeyPress(e) {
+          e.preventDefault();
+          controls[action] = e.key.toLowerCase();
+          input.value = controls[action];
+          document.removeEventListener("keydown", handleKeyPress);
+        }
+
+        document.addEventListener("keydown", handleKeyPress);
+      }
+
+      // Reset controls to default
+      function resetControls() {
+        controls = { ...defaultControls };
+        initControlsGrid();
+      }
+
+      // Server management
+      function showServerList() {
+        document.getElementById("mainMenu").style.display = "none";
+        document.getElementById("serverList").style.display = "flex";
+        updateServerGrid();
+      }
+
+      function updateServerGrid() {
+        const grid = document.getElementById("serverGrid");
+        grid.innerHTML = "";
+
+        servers.forEach((server, index) => {
+          const card = document.createElement("div");
+          card.className = "server-card";
+          card.innerHTML = `
+            <h3>${server.name}</h3>
+            <p>${server.ip}</p>
+            <div class="server-actions">
+              <button class="game-ui-btn" onclick="connectToServer(${index})">Connect</button>
+              <button class="game-ui-btn" onclick="deleteServer(${index})">Delete</button>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      }
+
+      function showAddServer() {
+        const name = prompt("Enter server name:");
+        const ip = prompt("Enter server IP:");
+        if (name && ip) {
+          servers.push({ name, ip });
+          localStorage.setItem("servers", JSON.stringify(servers));
+          updateServerGrid();
+        }
+      }
+
+      function deleteServer(index) {
+        if (confirm("Delete this server?")) {
+          servers.splice(index, 1);
+          localStorage.setItem("servers", JSON.stringify(servers));
+          updateServerGrid();
+        }
+      }
+
+      function connectToServer(index) {
+        const server = servers[index];
+        settings.serverIP = server.ip;
+        startBot();
+      }
+
+      // Update sensitivity display
+      function updateSensitivityDisplay() {
+        const value = document.getElementById("sensitivity").value;
+        document.getElementById("sensitivityDisplay").textContent = value;
+      }
+
+      // Toggle cursor lock
+      function toggleCursorLock() {
+        if (isPointerLocked) {
+          document.exitPointerLock();
+        } else {
+          document.getElementById("gameFrame").requestPointerLock();
+        }
+      }
+
+      // Save settings
+      function saveSettings() {
+        settings.sensitivity = document.getElementById("sensitivity").value;
+        localStorage.setItem("sensitivity", settings.sensitivity);
+        localStorage.setItem("controls", JSON.stringify(controls));
+        closeSettings();
+      }
+
+      // Initialize
+      initHotbar();
+      initInventory();
+      initControlsGrid();
+      document.getElementById("sensitivity").value = settings.sensitivity;
+      updateSensitivityDisplay();
+
+      // Add Tab key handler
+      document.addEventListener("keydown", (e) => {
+        if (e.key.toLowerCase() === "tab") {
+          e.preventDefault();
+          toggleCursorLock();
+        }
+      });
+
+      // Show cursor lock notice
+      document.addEventListener("pointerlockchange", () => {
+        isPointerLocked =
+          document.pointerLockElement === document.getElementById("gameFrame");
+        const notice = document.getElementById("cursorLockNotice");
+        notice.classList.toggle("show", isPointerLocked);
+      });
+
+      // Music System
+      const musicTracks = [
+        "/audio/background1.mp3",
+        "/audio/background2.mp3",
+        "/audio/background3.mp3",
+      ];
+      let currentTrack = 0;
+      let audio = new Audio(musicTracks[currentTrack]);
+      let isPlaying = false;
+
+      function toggleMusic() {
+        const icon = document.getElementById("playPauseIcon");
+        if (isPlaying) {
+          audio.pause();
+          icon.className = "fas fa-play";
+        } else {
+          audio.play();
+          icon.className = "fas fa-pause";
+        }
+        isPlaying = !isPlaying;
+      }
+
+      function nextTrack() {
+        currentTrack = (currentTrack + 1) % musicTracks.length;
+        audio.src = musicTracks[currentTrack];
+        if (isPlaying) {
+          audio.play();
+        }
+      }
+
+      function updateVolume(value) {
+        audio.volume = value / 100;
+      }
+
+      // Particle System
+      function createParticles() {
+        const particles = document.getElementById("particles");
+        for (let i = 0; i < 50; i++) {
+          const particle = document.createElement("div");
+          particle.className = "particle";
+          particle.style.left = Math.random() * 100 + "vw";
+          particle.style.top = Math.random() * 100 + "vh";
+          particle.style.width = particle.style.height =
+            Math.random() * 5 + "px";
+          particle.style.animationDelay = Math.random() * 2 + "s";
+          particles.appendChild(particle);
+        }
+      }
+
+      // Loading Screen
+      function showLoading() {
+        document.getElementById("loadingScreen").style.display = "flex";
+      }
+
+      function hideLoading() {
+        document.getElementById("loadingScreen").style.display = "none";
+      }
+
+      // Initialize
+      window.onload = function () {
+        createParticles();
+        showLoading();
+
+        // Simulate loading time
+        setTimeout(() => {
+          hideLoading();
+          // Start background music
+          audio.volume = 0.5;
+          audio.loop = true;
+        }, 2000);
+      };
+
+      // Rest of the existing JavaScript...
+    </script>
+  </body>
+</html>
