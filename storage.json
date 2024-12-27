@@ -1,0 +1,11 @@
+{
+  "whitelistedPlayers": ["SupremeYT", "BOB01"],
+  "settings": {
+    "defaultBotName": "BOB101",
+    "defaultServerIP": "play.kings-craft.com",
+    "commandCooldown": 1000,
+    "autoReconnect": true,
+    "notifications": true
+  },
+  "savedServers": []
+}
